@@ -1,0 +1,116 @@
+{
+  "name": "Monitor de passagens POA - AMS",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "=https://api.travelpayouts.com/v1/prices/cheap?origin=POA&destination=AMS&depart_date=2027-05&currency=BRL&token=SEU_TOKEN_AQUI",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "59852fc5-5bbf-46c2-bb87-85ec3f1c5931",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json.data;\nconst voos = [];\n\nconst cias = {\n  'LA': 'LATAM', 'JJ': 'LATAM Brasil', 'G3': 'Gol', 'AD': 'Azul',\n  'AA': 'American', 'UA': 'United', 'DL': 'Delta', 'AF': 'Air France',\n  'KL': 'KLM', 'LH': 'Lufthansa', 'TP': 'TAP', 'IB': 'Iberia',\n  'CM': 'Copa', 'AV': 'Avianca', 'AR': 'Aerolíneas', 'H2': 'Sky',\n  'EK': 'Emirates', 'QR': 'Qatar', 'TK': 'Turkish', 'BA': 'British'\n};\n\nfor (const [destino, opcoes] of Object.entries(data)) {\n  for (const [escalas, voo] of Object.entries(opcoes)) {\n    voos.push({\n      destino: destino,\n      escalas: Number(escalas),\n      preco: voo.price,\n      companhia: voo.airline,\n      ida: voo.departure_at,\n      volta: voo.return_at\n    });\n  }\n}\n\nvoos.sort((a, b) => a.preco - b.preco);\n\nconst baratas = voos.filter(v => {\n  const ida = v.ida.slice(0, 10);\n  return (ida === '2027-05-14' || ida === '2027-05-15') && v.preco < 9000;\n});\n\nconst agoraSP = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });\nconst hora = new Date(agoraSP).getHours();\nconst carimbo = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });\n\nif (baratas.length === 0) {\n  if (hora !== 0) {\n    return [];\n  }\n  return [{ json: { corpo: `\n    <div style=\"font-family:Arial,sans-serif;max-width:600px;\">\n      <h2 style=\"color:#111827;\">Porto Alegre → Amsterdã</h2>\n      <div style=\"padding:12px 16px;background:#f9fafb;border-left:4px solid #9ca3af;border-radius:6px;\">\n        <p style=\"color:#6b7280;font-size:14px;margin:0;\">\n          Nenhuma passagem encontrada para 14 ou 15 de maio de 2027.\n        </p>\n      </div>\n      <p style=\"color:#9ca3af;font-size:12px;margin-top:20px;\">\n        Verificado em ${carimbo} — o monitor está funcionando.\n      </p>\n    </div>` } }];\n}\n\nconst linhas = baratas.map((v, i) => {\n  const idaISO = v.ida.slice(0, 10);\n  const voltaISO = v.volta.slice(0, 10);\n  const ida = idaISO.split('-').reverse().join('/');\n  const volta = voltaISO.split('-').reverse().join('/');\n\n  const linkAvia = `https://search.aviasales.com/flights/?origin_iata=POA&destination_iata=AMS&depart_date=${idaISO}&return_date=${voltaISO}&adults=1&one_way=false`;\n  const d1 = idaISO.slice(2).replace(/-/g, '');\n  const d2 = voltaISO.slice(2).replace(/-/g, '');\n  const linkSky = `https://www.skyscanner.com.br/transporte/passagens-aereas/poa/ams/${d1}/${d2}/`;\n\n  const escalas = v.escalas === 0 ? 'Direto' : `${v.escalas} escala(s)`;\n  const destaque = i === 0 ? 'border-left:4px solid #16a34a;' : 'border-left:4px solid #e5e7eb;';\n  const cia = cias[v.companhia] || v.companhia;\n\n  return `\n    <div style=\"${destaque}padding:12px 16px;margin-bottom:12px;background:#f9fafb;border-radius:6px;\">\n      <div style=\"font-size:18px;font-weight:600;color:#111827;\">\n        Amsterdã — <span style=\"color:#16a34a;\">R$ ${v.preco}</span>\n      </div>\n      <div style=\"font-size:14px;color:#6b7280;margin:6px 0;\">\n        ${ida} → ${volta} &nbsp;•&nbsp; ${escalas} &nbsp;•&nbsp; ${cia}\n      </div>\n      <a href=\"${linkSky}\" style=\"display:inline-block;background:#2563eb;color:#fff;padding:8px 16px;border-radius:4px;text-decoration:none;font-size:14px;margin-right:8px;\">Skyscanner</a>\n      <a href=\"${linkAvia}\" style=\"display:inline-block;background:#6b7280;color:#fff;padding:8px 16px;border-radius:4px;text-decoration:none;font-size:14px;\">Aviasales</a>\n    </div>`;\n}).join('');\n\nconst texto = `\n  <div style=\"font-family:Arial,sans-serif;max-width:600px;\">\n    <h2 style=\"color:#111827;\">Porto Alegre → Amsterdã</h2>\n    <p style=\"color:#6b7280;font-size:14px;\">Saídas em 14 ou 15 de maio de 2027.</p>\n    ${linhas}\n    <p style=\"color:#9ca3af;font-size:12px;margin-top:20px;\">\n      Verificado em ${carimbo} — preços do cache da Aviasales, confirme no site antes de comprar.\n    </p>\n  </div>`;\n\nreturn [{ json: { corpo: texto } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "a7dfe3a8-91d3-4727-b267-940aab38ab6d",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "sendTo": "seu@email.com",
+        "subject": "Monitor POA - AMS",
+        "message": "={{ $json.corpo }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        656,
+        0
+      ],
+      "id": "5581e682-5fea-4936-b62c-0645f5ad1efd",
+      "name": "Send a message",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "SUA_CREDENCIAL_GMAIL",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -16,
+        0
+      ],
+      "id": "2b65a330-8dce-459e-b4bb-023cdd6ee5cc",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "tags": []
+}
